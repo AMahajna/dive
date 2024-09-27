@@ -1,0 +1,21 @@
+Package: dive
+Title: diversity informed valuation of ecosystem functionality
+Version: 0.1.0
+Authors@R: 
+    person("Asala", "Mahajna", , "first.last@example.com", role = c("aut", "cre"),
+           comment = c(ORCID = "YOUR-ORCID-ID"))
+Description: reduces microbiome and correlates it to ecosystem function.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports: 
+    forecast,
+    ggplot2,
+    grDevices,
+    mia,
+    stats,
+    SummarizedExperiment
+Depends: 
+    R (>= 2.10)
+LazyData: true

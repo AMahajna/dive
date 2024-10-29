@@ -13,9 +13,9 @@ call:
 alpha = dive(tse, ecosystem_functioning, output_dir = "figures")
 
 where: 
-tse - is your Tree Summarized Experiment (n samples) 
-ecosystem_functioning - is a measure of ecosystem functioning defined by the user (dataframe with dimesnions of n*1) 
-alpha - is a dataframe of the different alpha diversity metrics calculated for the respective tse 
-output_dir - is the name of directory in which to save the resulting cross-correlational functions (default = "figures") 
+tse - is your Tree Summarized Experiment (n samples) \n
+ecosystem_functioning - is a measure of ecosystem functioning defined by the user (dataframe with dimesnions of n*1) \n
+alpha - is a dataframe of the different alpha diversity metrics calculated for the respective tse \n
+output_dir - is the name of directory in which to save the resulting cross-correlational functions (default = "figures") \n
 
 

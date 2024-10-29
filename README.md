@@ -6,13 +6,17 @@ The alpha-diversity metric that correlated most significantly with the ecosystem
 enhances the ecosystem functioning. 
 
 install and load package: 
+
 remotes::install_github("AMahajna/dive")
+
 library(dive) 
 
 call: 
+
 alpha = dive(tse, ecosystem_functioning, output_dir = "figures")
 
 where: 
+
 tse - is your Tree Summarized Experiment (n samples) 
 
 ecosystem_functioning - is a measure of ecosystem functioning defined by the user (dataframe with dimesnions of n*1) 

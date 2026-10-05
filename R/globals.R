@@ -1,0 +1,12 @@
+utils::globalVariables(
+  c(
+    "Date",
+    "Series",
+    "Value",
+    "association",
+    "correlation",
+    "dcf",
+    "lag_days",
+    "metric"
+  )
+)

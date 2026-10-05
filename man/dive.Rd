@@ -2,12 +2,13 @@
 % Please edit documentation in R/dive.R
 \name{dive}
 \alias{dive}
-\title{Run DIVE analysis}
+\title{Diversity-Informed Valuation of Ecosystem Functioning}
 \usage{
 dive(
   tse,
   functionality,
   sampling_even,
+  functionality_name = "Functionality",
   output_dir = "DIVE_results",
   rarefaction_iterations = 50L,
   rarefaction_depth = NULL,
@@ -16,46 +17,48 @@ dive(
 )
 }
 \arguments{
-\item{tse}{A TreeSummarizedExperiment containing an assay
-named \code{"counts"} and a \code{Date} column in \code{colData(tse)}.}
+\item{tse}{A TreeSummarizedExperiment or compatible
+SummarizedExperiment object containing a \code{counts} assay.
+Sampling dates must be stored in \code{colData(tse)$Date}.}
 
-\item{functionality}{Numeric vector containing ecosystem
-functionality values corresponding exactly to the samples
-in \code{tse}.}
+\item{functionality}{Numeric vector containing one ecosystem
+functionality value for each sample, in the same order as the
+columns of \code{tse}.}
 
-\item{sampling_even}{Numeric indicator. Use \code{1} for evenly
-sampled data and \code{0} for unevenly sampled data.}
+\item{sampling_even}{Integer. Use 1 for evenly sampled data
+and 0 for unevenly sampled data.}
 
-\item{output_dir}{Directory in which DIVE output will be
+\item{functionality_name}{Character label describing the
+ecosystem functionality.}
+
+\item{output_dir}{Directory in which DIVE outputs will be
 written.}
 
 \item{rarefaction_iterations}{Number of repeated rarefaction
-rounds used for alpha-diversity estimation.}
+iterations used by \code{mia::addAlpha()}.}
 
-\item{rarefaction_depth}{Rarefaction depth. If \code{NULL}, the
-smallest sample library size is used.}
+\item{rarefaction_depth}{Rarefaction depth. If NULL, the
+smallest observed library size is used.}
 
-\item{max_lag}{Maximum lag. For DCF this is expressed in
-days. For CCF this is expressed as number of sampling
-intervals.}
+\item{max_lag}{Maximum temporal lag. For irregular sampling
+this is expressed in days. For regular sampling it represents
+the maximum number of sampling intervals.}
 
-\item{seed}{Random-number seed used by repeated rarefaction.}
+\item{seed}{Random seed used for alpha-diversity rarefaction.}
 }
 \value{
 An object of class \code{dive_result}.
 }
 \description{
-DIVE calculates alpha-diversity metrics and evaluates their
-temporal association with ecosystem functionality.
+Calculates microbial alpha-diversity descriptors and relates
+them to ecosystem functionality through temporal association
+analysis.
+}
+\details{
+Regularly sampled data are analyzed using lagged Pearson
+cross-correlation. Irregularly sampled data are analyzed using
+an exact-lag discrete correlation function.
 
-Evenly sampled time series are analyzed using CCF.
-
-Unevenly sampled time series are analyzed using an exact-lag
-DCF. No lag binning or bootstrap resampling is performed.
-
-For both methods:
-
-negative lag = alpha diversity precedes functionality
-
-lag zero = contemporaneous association
+Negative lag values indicate that alpha diversity precedes
+ecosystem functionality.
 }

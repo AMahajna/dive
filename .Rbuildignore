@@ -1,3 +1,4 @@
-^dive\.Rproj$
+^.*\.Rproj$
 ^\.Rproj\.user$
-^LICENSE\.md$
+^\.github$
+^examples$

@@ -1,21 +1,34 @@
-Package: dive
-Title: diversity informed valuation of ecosystem functionality
+Package: DIVE
+Type: Package
+Title: Diversity-Informed Valuation of Ecosystem Functioning
 Version: 0.1.0
-Authors@R: 
-    person("Asala", "Mahajna", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: reduces microbiome and correlates it to ecosystem function.
+Authors@R:
+    person(
+        given = "A.",
+        family = "Mahajna",
+        role = c("aut", "cre"),
+        email = "Asala.Mahajna@wetsus.nl "
+    )
+Description:
+    Provides tools for relating microbial community alpha-diversity
+    characteristics to ecosystem functionality through temporal
+    association analysis. DIVE supports regularly sampled observations
+    using lagged cross-correlation and irregularly sampled observations
+    using exact-lag discrete correlation analysis. The package is
+    designed for high-dimensional microbial community data represented
+    as TreeSummarizedExperiment objects.
 License: MIT + file LICENSE
 Encoding: UTF-8
-Roxygen: list(markdown = TRUE)
-Imports: 
-    forecast,
-    ggplot2,
-    grDevices,
-    mia,
-    stats,
-    SummarizedExperiment
-Depends: 
-    R (>= 2.10)
 LazyData: true
+Imports:
+    ggplot2,
+    mia,
+    SummarizedExperiment
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    readxl
+Config/testthat/edition: 3
+VignetteBuilder: knitr
 Config/roxygen2/version: 8.1.0

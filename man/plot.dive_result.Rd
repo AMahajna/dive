@@ -2,22 +2,19 @@
 % Please edit documentation in R/plotting.R
 \name{plot.dive_result}
 \alias{plot.dive_result}
-\title{Plot an individual DIVE result}
+\title{Plot a DIVE result}
 \usage{
-\method{plot}{dive_result}(x, metric, show_title = TRUE, ...)
+\method{plot}{dive_result}(x, ...)
 }
 \arguments{
-\item{x}{A \code{dive_result}.}
+\item{x}{A \code{dive_result} object.}
 
-\item{metric}{Alpha-diversity metric name.}
-
-\item{show_title}{Logical.}
-
-\item{...}{Additional arguments.}
+\item{...}{Additional arguments passed to
+\code{plot_dive_heatmap()}.}
 }
 \value{
-A ggplot object.
+The input object invisibly.
 }
 \description{
-Plot an individual DIVE result
+Plot a DIVE result
 }

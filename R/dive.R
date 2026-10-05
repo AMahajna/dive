@@ -1,60 +1,61 @@
 # ============================================================
 # DIVE
-# Diversity-Informed Valuation of Ecosystem Functioning
-#
-# Main user-facing function
+# Main user-facing analysis function
 # ============================================================
 
 
-#' Run DIVE analysis
+#' Diversity-Informed Valuation of Ecosystem Functioning
 #'
-#' @description
-#' DIVE calculates alpha-diversity metrics and evaluates their
-#' temporal association with ecosystem functionality.
+#' Calculates microbial alpha-diversity descriptors and relates
+#' them to ecosystem functionality through temporal association
+#' analysis.
 #'
-#' Evenly sampled time series are analyzed using CCF.
+#' Regularly sampled data are analyzed using lagged Pearson
+#' cross-correlation. Irregularly sampled data are analyzed using
+#' an exact-lag discrete correlation function.
 #'
-#' Unevenly sampled time series are analyzed using an exact-lag
-#' DCF. No lag binning or bootstrap resampling is performed.
+#' Negative lag values indicate that alpha diversity precedes
+#' ecosystem functionality.
 #'
-#' For both methods:
+#' @param tse A TreeSummarizedExperiment or compatible
+#' SummarizedExperiment object containing a \code{counts} assay.
+#' Sampling dates must be stored in \code{colData(tse)$Date}.
 #'
-#' negative lag = alpha diversity precedes functionality
+#' @param functionality Numeric vector containing one ecosystem
+#' functionality value for each sample, in the same order as the
+#' columns of \code{tse}.
 #'
-#' lag zero = contemporaneous association
+#' @param sampling_even Integer. Use 1 for evenly sampled data
+#' and 0 for unevenly sampled data.
 #'
-#' @param tse A TreeSummarizedExperiment containing an assay
-#'   named `"counts"` and a `Date` column in `colData(tse)`.
+#' @param functionality_name Character label describing the
+#' ecosystem functionality.
 #'
-#' @param functionality Numeric vector containing ecosystem
-#'   functionality values corresponding exactly to the samples
-#'   in `tse`.
-#'
-#' @param sampling_even Numeric indicator. Use `1` for evenly
-#'   sampled data and `0` for unevenly sampled data.
-#'
-#' @param output_dir Directory in which DIVE output will be
-#'   written.
+#' @param output_dir Directory in which DIVE outputs will be
+#' written.
 #'
 #' @param rarefaction_iterations Number of repeated rarefaction
-#'   rounds used for alpha-diversity estimation.
+#' iterations used by \code{mia::addAlpha()}.
 #'
-#' @param rarefaction_depth Rarefaction depth. If `NULL`, the
-#'   smallest sample library size is used.
+#' @param rarefaction_depth Rarefaction depth. If NULL, the
+#' smallest observed library size is used.
 #'
-#' @param max_lag Maximum lag. For DCF this is expressed in
-#'   days. For CCF this is expressed as number of sampling
-#'   intervals.
+#' @param max_lag Maximum temporal lag. For irregular sampling
+#' this is expressed in days. For regular sampling it represents
+#' the maximum number of sampling intervals.
 #'
-#' @param seed Random-number seed used by repeated rarefaction.
+#' @param seed Random seed used for alpha-diversity rarefaction.
 #'
-#' @return An object of class `dive_result`.
+#' @return An object of class \code{dive_result}.
 #'
 #' @export
+# ------------------------------------------------------------
+
 dive <- function(
     tse,
     functionality,
     sampling_even,
+    functionality_name = "Functionality",
     output_dir = "DIVE_results",
     rarefaction_iterations = 50L,
     rarefaction_depth = NULL,
@@ -63,18 +64,56 @@ dive <- function(
 ) {
 
   # ----------------------------------------------------------
-  # Validate analysis type
+  # Validate general arguments
   # ----------------------------------------------------------
 
   if (
-    length(sampling_even) != 1L ||
-    !is.numeric(sampling_even) ||
-    !is.finite(sampling_even) ||
-    !sampling_even %in% c(0, 1)
+    !is.character(
+      functionality_name
+    ) ||
+    length(
+      functionality_name
+    ) != 1L
   ) {
 
     stop(
-      "`sampling_even` must be either 0 or 1."
+      "functionality_name must be a single character string.",
+      call. = FALSE
+    )
+  }
+
+
+  if (
+    !is.character(
+      output_dir
+    ) ||
+    length(
+      output_dir
+    ) != 1L
+  ) {
+
+    stop(
+      "output_dir must be a single character string.",
+      call. = FALSE
+    )
+  }
+
+
+  sampling_even <- as.integer(
+    sampling_even
+  )
+
+
+  if (
+    !sampling_even %in% c(
+      0L,
+      1L
+    )
+  ) {
+
+    stop(
+      "sampling_even must be either 0 or 1.",
+      call. = FALSE
     )
   }
 
@@ -86,47 +125,39 @@ dive <- function(
 
 
   if (
-    length(max_lag) != 1L ||
-    !is.numeric(max_lag) ||
-    !is.finite(max_lag) ||
-    max_lag < 0
+    !.is_single_number(
+      seed
+    )
   ) {
 
     stop(
-      "`max_lag` must be one non-negative number."
+      "seed must be a single finite number.",
+      call. = FALSE
     )
   }
 
 
   # ----------------------------------------------------------
-  # Read sampling dates
+  # Dates and functionality
   # ----------------------------------------------------------
 
   dates <- .get_dive_dates(
-    tse = tse
+    tse
   )
 
-
-  if (length(dates) < 2L) {
-
-    stop(
-      "At least two sampling dates are required."
-    )
-  }
-
-
-  # ----------------------------------------------------------
-  # Validate functionality
-  # ----------------------------------------------------------
 
   functionality <- .prepare_functionality(
+
     functionality = functionality,
-    n_samples = length(dates)
+
+    n_samples = length(
+      dates
+    )
   )
 
 
   # ----------------------------------------------------------
-  # Sort TSE, dates and functionality chronologically
+  # Sort all observations chronologically
   # ----------------------------------------------------------
 
   chronological_order <- order(
@@ -139,23 +170,25 @@ dive <- function(
   ]
 
 
+  functionality <- functionality[
+    chronological_order
+  ]
+
+
   tse <- tse[
     ,
     chronological_order
   ]
 
 
-  functionality <- functionality[
-    chronological_order
-  ]
-
-
   # ----------------------------------------------------------
-  # Inspect temporal sampling
+  # Inspect sampling pattern
   # ----------------------------------------------------------
 
-  sampling <- .inspect_sampling(
+  sampling_information <- .inspect_sampling(
+
     dates = dates,
+
     sampling_even = sampling_even
   )
 
@@ -170,161 +203,103 @@ dive <- function(
 
 
   alpha <- .calculate_alpha(
+
     tse = tse,
+
     rarefaction_depth = rarefaction_depth,
-    rarefaction_iterations = rarefaction_iterations
+
+    rarefaction_iterations =
+      rarefaction_iterations
   )
 
 
+  resolved_rarefaction_depth <- attr(
+    alpha,
+    "rarefaction_depth"
+  )
+
+
+  # ----------------------------------------------------------
+  # Temporal association
+  # ----------------------------------------------------------
+
   if (
-    !is.data.frame(alpha) &&
-    !is.matrix(alpha)
+    sampling_even == 0L
   ) {
 
-    stop(
-      "Alpha-diversity calculation did not return a ",
-      "two-dimensional table."
+    correlation <- .calculate_dcf_table(
+
+      alpha = alpha,
+
+      functionality = functionality,
+
+      dates = dates,
+
+      max_lag = max_lag
     )
-  }
 
-
-  if (nrow(alpha) != length(dates)) {
-
-    stop(
-      "Alpha-diversity output does not contain one row ",
-      "for every sampling date."
-    )
-  }
-
-
-  # ==========================================================
-  # DCF
-  # Unevenly sampled data
-  # ==========================================================
-
-  if (sampling_even == 0) {
 
     method <- "DCF"
 
-
-    correlation <- .calculate_dcf_table(
-      alpha = alpha,
-      functionality = functionality,
-      dates = dates,
-      max_lag_days = max_lag
-    )
-
-
-    # ==========================================================
-    # CCF
-    # Evenly sampled data
-    # ==========================================================
-
   } else {
 
-    method <- "CCF"
-
-
-    sampling_intervals <- as.numeric(
-      diff(
-        dates
-      )
-    )
-
-
-    sampling_interval_days <- stats::median(
-      sampling_intervals,
-      na.rm = TRUE
-    )
-
-
-    if (
-      !is.finite(sampling_interval_days) ||
-      sampling_interval_days <= 0
-    ) {
-
-      stop(
-        "Could not determine a valid sampling interval."
-      )
-    }
-
-
     correlation <- .calculate_ccf_table(
+
       alpha = alpha,
+
       functionality = functionality,
-      max_lag = max_lag,
-      sampling_interval_days = sampling_interval_days
+
+      dates = dates,
+
+      max_lag = max_lag
     )
+
+
+    method <- "CCF"
   }
 
 
   # ----------------------------------------------------------
-  # Restore alpha-metric ordering
-  # ----------------------------------------------------------
-
-  metric_order <- colnames(
-    alpha
-  )
-
-
-  correlation$metric <- factor(
-    correlation$metric,
-    levels = metric_order
-  )
-
-
-  correlation <- correlation[
-    order(
-      correlation$metric,
-      correlation$lag_days
-    ),
-    ,
-    drop = FALSE
-  ]
-
-
-  correlation$metric <- as.character(
-    correlation$metric
-  )
-
-
-  rownames(
-    correlation
-  ) <- NULL
-
-
-  # ----------------------------------------------------------
-  # Record settings
-  # ----------------------------------------------------------
-
-  settings <- list(
-    sampling_even = sampling_even,
-    analysis_method = method,
-    rarefaction_iterations = rarefaction_iterations,
-    rarefaction_depth = rarefaction_depth,
-    max_lag = max_lag,
-    lag_definition = "negative lag means alpha diversity precedes functionality",
-    dcf_lag_method = if (
-      method == "DCF"
-    ) {
-      "exact observed day differences; no binning"
-    } else {
-      NA_character_
-    },
-    seed = seed
-  )
-
-
-  # ----------------------------------------------------------
-  # Construct result
+  # Construct result object
   # ----------------------------------------------------------
 
   result <- list(
+
     alpha = alpha,
+
+    functionality = functionality,
+
+    dates = dates,
+
     correlation = correlation,
-    settings = settings,
-    sampling = sampling,
-    method = method
+
+    sampling = sampling_information,
+
+    method = method,
+
+    settings = list(
+
+      functionality_name =
+        functionality_name,
+
+      sampling_even =
+        sampling_even,
+
+      output_dir =
+        output_dir,
+
+      rarefaction_iterations =
+        rarefaction_iterations,
+
+      rarefaction_depth =
+        resolved_rarefaction_depth,
+
+      max_lag =
+        max_lag,
+
+      seed =
+        seed
+    )
   )
 
 
@@ -334,12 +309,13 @@ dive <- function(
 
 
   # ----------------------------------------------------------
-  # Write tables and figures
+  # Write results
   # ----------------------------------------------------------
 
   .write_dive_output(
+
     result = result,
-    sample_dates = dates,
+
     output_dir = output_dir
   )
 

@@ -1,56 +1,80 @@
 # ============================================================
 # DIVE
-# Sampling and functionality utilities
+# Sampling-date handling and functionality validation
 # ============================================================
 
 
-.get_dive_dates <- function(
-    tse
-) {
+# ------------------------------------------------------------
+# Extract sampling dates from a TreeSummarizedExperiment
+# ------------------------------------------------------------
+
+.get_dive_dates <- function(tse) {
 
   sample_metadata <- SummarizedExperiment::colData(
     tse
   )
 
-
-  if (!"Date" %in% colnames(sample_metadata)) {
+  if (
+    !"Date" %in% colnames(
+      sample_metadata
+    )
+  ) {
 
     stop(
-      "`colData(tse)` must contain a column named `Date`."
+      "The TSE must contain a column named 'Date' in colData(tse).",
+      call. = FALSE
     )
   }
 
 
-  dates <- sample_metadata[["Date"]]
+  dates <- sample_metadata$Date
 
 
-  if (!inherits(
-    dates,
-    "Date"
-  )) {
+  if (
+    !inherits(
+      dates,
+      "Date"
+    )
+  ) {
 
-    stop(
-      "`colData(tse)$Date` must have class `Date`."
+    dates <- tryCatch(
+
+      as.Date(
+        dates
+      ),
+
+      error = function(e) {
+
+        stop(
+          "colData(tse)$Date could not be converted to class 'Date'.",
+          call. = FALSE
+        )
+      }
     )
   }
 
 
-  if (anyNA(
-    dates
-  )) {
+  if (
+    anyNA(
+      dates
+    )
+  ) {
 
     stop(
-      "`colData(tse)$Date` contains missing values."
+      "colData(tse)$Date contains missing or invalid dates.",
+      call. = FALSE
     )
   }
 
 
-  if (anyDuplicated(
-    dates
-  )) {
+  if (
+    anyDuplicated(
+      dates
+    )
+  ) {
 
     warning(
-      "Duplicate sampling dates were detected."
+      "Duplicate sampling dates were detected in colData(tse)$Date."
     )
   }
 
@@ -59,163 +83,225 @@
 }
 
 
+# ------------------------------------------------------------
+# Validate functionality vector
+# ------------------------------------------------------------
+
 .prepare_functionality <- function(
     functionality,
     n_samples
 ) {
 
-  if (!is.numeric(
-    functionality
-  )) {
-
-    stop(
-      "`functionality` must be a numeric vector."
-    )
-  }
-
-
-  if (length(
-    functionality
-  ) != n_samples) {
-
-    stop(
-      "The length of `functionality` must equal the ",
-      "number of samples in `tse`."
-    )
-  }
-
-
-  if (anyNA(
-    functionality
-  )) {
-
-    stop(
-      "`functionality` contains missing values."
-    )
-  }
-
-
-  if (any(
-    !is.finite(
+  if (
+    !is.numeric(
       functionality
     )
-  )) {
+  ) {
 
     stop(
-      "`functionality` contains non-finite values."
+      "functionality must be a numeric vector.",
+      call. = FALSE
     )
   }
 
 
-  as.numeric(
+  functionality <- as.numeric(
     functionality
   )
+
+
+  if (
+    length(
+      functionality
+    ) != n_samples
+  ) {
+
+    stop(
+      "The length of functionality must equal the number of samples in the TSE.",
+      call. = FALSE
+    )
+  }
+
+
+  if (
+    anyNA(
+      functionality
+    )
+  ) {
+
+    stop(
+      "functionality contains missing values.",
+      call. = FALSE
+    )
+  }
+
+
+  if (
+    any(
+      !is.finite(
+        functionality
+      )
+    )
+  ) {
+
+    stop(
+      "functionality contains non-finite values.",
+      call. = FALSE
+    )
+  }
+
+
+  functionality
 }
 
+
+# ------------------------------------------------------------
+# Inspect temporal sampling
+# ------------------------------------------------------------
 
 .inspect_sampling <- function(
     dates,
     sampling_even
 ) {
 
-  if (!inherits(
-    dates,
-    "Date"
-  )) {
+  sampling_even <- as.integer(
+    sampling_even
+  )
+
+
+  if (
+    !sampling_even %in% c(
+      0L,
+      1L
+    )
+  ) {
 
     stop(
-      "`dates` must have class `Date`."
+      "sampling_even must be either 0 or 1.",
+      call. = FALSE
     )
   }
 
 
-  if (length(
+  dates_sorted <- sort(
     dates
-  ) < 2L) {
-
-    stop(
-      "At least two dates are required."
-    )
-  }
+  )
 
 
-  intervals_days <- as.numeric(
+  intervals <- as.numeric(
     diff(
-      sort(
-        dates
-      )
+      dates_sorted
     )
   )
 
 
+  if (
+    length(
+      intervals
+    ) == 0L
+  ) {
+
+    stop(
+      "At least two sampling dates are required.",
+      call. = FALSE
+    )
+  }
+
+
   observed_even <- length(
     unique(
-      intervals_days
+      intervals
     )
   ) == 1L
 
 
   if (
-    sampling_even == 1 &&
+    sampling_even == 1L &&
     !observed_even
   ) {
 
     warning(
-      "`sampling_even = 1` was selected, but the observed ",
-      "sampling intervals are not identical."
+      paste0(
+        "sampling_even = 1 was requested, but the observed ",
+        "sampling intervals are not identical."
+      )
     )
   }
 
 
-  data.frame(
-    n_samples = length(dates),
+  selected_method <- if (
+    sampling_even == 1L
+  ) {
 
-    first_sample_date = as.character(
-      min(dates)
+    "CCF"
+
+  } else {
+
+    "Exact-lag DCF"
+  }
+
+
+  summary_table <- data.frame(
+
+    n_samples = length(
+      dates_sorted
     ),
 
-    last_sample_date = as.character(
-      max(dates)
+    first_date = min(
+      dates_sorted
+    ),
+
+    last_date = max(
+      dates_sorted
     ),
 
     study_duration_days = as.numeric(
-      max(dates) -
-        min(dates)
+      max(
+        dates_sorted
+      ) -
+        min(
+          dates_sorted
+        )
     ),
 
     minimum_interval_days = min(
-      intervals_days
+      intervals
     ),
 
     median_interval_days = stats::median(
-      intervals_days
+      intervals
     ),
 
     mean_interval_days = mean(
-      intervals_days
+      intervals
     ),
 
     maximum_interval_days = max(
-      intervals_days
+      intervals
     ),
 
-    interval_sd_days = stats::sd(
-      intervals_days
+    sd_interval_days = stats::sd(
+      intervals
     ),
 
-    observed_sampling_even = observed_even,
+    observed_even_sampling = observed_even,
 
-    user_selected_sampling_even =
-      sampling_even,
+    requested_sampling_even = sampling_even,
 
-    selected_method = if (
-      sampling_even == 1
-    ) {
-      "CCF"
-    } else {
-      "DCF"
-    },
+    selected_method = selected_method,
 
     stringsAsFactors = FALSE
+  )
+
+
+  list(
+
+    summary = summary_table,
+
+    intervals = intervals,
+
+    observed_even = observed_even,
+
+    selected_method = selected_method
   )
 }

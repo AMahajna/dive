@@ -1,193 +1,65 @@
 # ============================================================
 # DIVE
 # Exact-lag discrete correlation function
+# for irregularly sampled observations
+# ============================================================
+
+
+# ------------------------------------------------------------
+# Calculate exact-lag DCF for one alpha-diversity metric
 #
-# Used for unevenly sampled data.
-#
-# No temporal binning is performed.
+# Lag convention:
 #
 # lag_days = alpha_date - functionality_date
 #
 # Negative lag:
-# alpha diversity precedes functionality.
+# alpha diversity precedes functionality
 #
-# Lag zero:
-# alpha diversity and functionality come from the exact same
-# sampling date.
-# ============================================================
-
+# lag 0:
+# alpha diversity and functionality were measured on
+# the same sampling date
+# ------------------------------------------------------------
 
 .calculate_single_dcf <- function(
-    x,
-    y,
+    alpha_values,
+    functionality,
     dates,
-    max_lag_days
+    max_lag
 ) {
 
-  if (
-    length(x) != length(y) ||
-    length(x) != length(dates)
-  ) {
-
-    stop(
-      "`x`, `y`, and `dates` must have identical lengths."
-    )
-  }
-
-
-  finite_x <- is.finite(
-    x
+  alpha_values <- as.numeric(
+    alpha_values
   )
 
 
-  finite_y <- is.finite(
-    y
+  functionality <- as.numeric(
+    functionality
   )
 
 
-  if (sum(
-    finite_x
-  ) < 2L) {
-
-    stop(
-      "At least two finite alpha-diversity values are required."
-    )
-  }
-
-
-  if (sum(
-    finite_y
-  ) < 2L) {
-
-    stop(
-      "At least two finite functionality values are required."
-    )
-  }
-
-
-  x_mean <- mean(
-    x[
-      finite_x
-    ]
+  max_lag <- .validate_nonnegative_number(
+    max_lag,
+    "max_lag"
   )
 
 
-  y_mean <- mean(
-    y[
-      finite_y
-    ]
+  alpha_z <- .standardize_vector(
+    alpha_values
   )
 
 
-  x_sd <- sqrt(
-    mean(
-      (
-        x[
-          finite_x
-        ] -
-          x_mean
-      )^2
-    )
-  )
-
-
-  y_sd <- sqrt(
-    mean(
-      (
-        y[
-          finite_y
-        ] -
-          y_mean
-      )^2
-    )
+  functionality_z <- .standardize_vector(
+    functionality
   )
 
 
   if (
-    !is.finite(x_sd) ||
-    x_sd == 0
-  ) {
-
-    stop(
-      "Alpha-diversity values have zero variance."
+    all(
+      is.na(
+        alpha_z
+      )
     )
-  }
-
-
-  if (
-    !is.finite(y_sd) ||
-    y_sd == 0
   ) {
-
-    stop(
-      "Functionality values have zero variance."
-    )
-  }
-
-
-  x_standardized <- (
-    x -
-      x_mean
-  ) / x_sd
-
-
-  y_standardized <- (
-    y -
-      y_mean
-  ) / y_sd
-
-
-  pairs <- expand.grid(
-    alpha_index = seq_along(
-      x
-    ),
-    functionality_index = seq_along(
-      y
-    ),
-    KEEP.OUT.ATTRS = FALSE,
-    stringsAsFactors = FALSE
-  )
-
-
-  pairs$alpha_date <- dates[
-    pairs$alpha_index
-  ]
-
-
-  pairs$functionality_date <- dates[
-    pairs$functionality_index
-  ]
-
-
-  pairs$lag_days <- as.numeric(
-    pairs$alpha_date -
-      pairs$functionality_date
-  )
-
-
-  pairs$udcf <-
-    x_standardized[
-      pairs$alpha_index
-    ] *
-    y_standardized[
-      pairs$functionality_index
-    ]
-
-
-  pairs <- pairs[
-    is.finite(
-      pairs$udcf
-    ) &
-      pairs$lag_days <= 0 &
-      pairs$lag_days >= -max_lag_days,
-    ,
-    drop = FALSE
-  ]
-
-
-  if (nrow(
-    pairs
-  ) == 0L) {
 
     return(
       data.frame(
@@ -201,9 +73,130 @@
   }
 
 
-  exact_lags <- sort(
+  if (
+    all(
+      is.na(
+        functionality_z
+      )
+    )
+  ) {
+
+    return(
+      data.frame(
+        lag_days = numeric(0),
+        n_pairs = integer(0),
+        dcf = numeric(0),
+        dcf_sd = numeric(0),
+        dcf_se = numeric(0)
+      )
+    )
+  }
+
+
+  pair_rows <- vector(
+    mode = "list",
+    length = length(
+      alpha_values
+    ) *
+      length(
+        functionality
+      )
+  )
+
+
+  row_index <- 1L
+
+
+  for (
+    alpha_index in seq_along(
+      alpha_values
+    )
+  ) {
+
+    for (
+      function_index in seq_along(
+        functionality
+      )
+    ) {
+
+      lag_days <- as.numeric(
+        dates[alpha_index] -
+          dates[function_index]
+      )
+
+
+      if (
+        lag_days < -max_lag ||
+        lag_days > 0
+      ) {
+
+        next
+      }
+
+
+      udcf <- alpha_z[alpha_index] *
+        functionality_z[function_index]
+
+
+      if (
+        !is.finite(
+          udcf
+        )
+      ) {
+
+        next
+      }
+
+
+      pair_rows[[row_index]] <- data.frame(
+
+        lag_days = lag_days,
+
+        udcf = udcf
+      )
+
+
+      row_index <- row_index + 1L
+    }
+  }
+
+
+  pair_rows <- pair_rows[
+    !vapply(
+      pair_rows,
+      is.null,
+      logical(1)
+    )
+  ]
+
+
+  if (
+    length(
+      pair_rows
+    ) == 0L
+  ) {
+
+    return(
+      data.frame(
+        lag_days = numeric(0),
+        n_pairs = integer(0),
+        dcf = numeric(0),
+        dcf_sd = numeric(0),
+        dcf_se = numeric(0)
+      )
+    )
+  }
+
+
+  pair_table <- do.call(
+    rbind,
+    pair_rows
+  )
+
+
+  observed_lags <- sort(
     unique(
-      pairs$lag_days
+      pair_table$lag_days
     )
   )
 
@@ -211,23 +204,25 @@
   result_rows <- vector(
     mode = "list",
     length = length(
-      exact_lags
+      observed_lags
     )
   )
 
 
-  for (lag_index in seq_along(
-    exact_lags
-  )) {
+  for (
+    lag_index in seq_along(
+      observed_lags
+    )
+  ) {
 
-    exact_lag <- exact_lags[
+    current_lag <- observed_lags[
       lag_index
     ]
 
 
-    lag_values <- pairs$udcf[
-      pairs$lag_days ==
-        exact_lag
+    lag_values <- pair_table$udcf[
+      pair_table$lag_days ==
+        current_lag
     ]
 
 
@@ -241,62 +236,75 @@
     )
 
 
-    if (n_pairs > 1L) {
+    dcf_sd <- if (
+      n_pairs >= 2L
+    ) {
 
-      dcf_sd <- stats::sd(
+      stats::sd(
         lag_values
       )
 
+    } else {
 
-      dcf_se <- dcf_sd /
+      NA_real_
+    }
+
+
+    dcf_se <- if (
+      n_pairs >= 2L
+    ) {
+
+      dcf_sd /
         sqrt(
           n_pairs
         )
 
     } else {
 
-      dcf_sd <- NA_real_
-
-      dcf_se <- NA_real_
+      NA_real_
     }
 
 
     result_rows[[lag_index]] <- data.frame(
-      lag_days = exact_lag,
+
+      lag_days = current_lag,
+
       n_pairs = n_pairs,
+
       dcf = dcf_value,
+
       dcf_sd = dcf_sd,
+
       dcf_se = dcf_se
     )
   }
 
 
-  output <- do.call(
+  result <- do.call(
     rbind,
     result_rows
   )
 
 
   rownames(
-    output
+    result
   ) <- NULL
 
 
-  output
+  result
 }
 
+
+# ------------------------------------------------------------
+# Calculate exact-lag DCF for all alpha-diversity metrics
+# ------------------------------------------------------------
 
 .calculate_dcf_table <- function(
     alpha,
     functionality,
     dates,
-    max_lag_days
+    max_lag
 ) {
-
-  alpha <- as.data.frame(
-    alpha
-  )
-
 
   metric_names <- colnames(
     alpha
@@ -311,9 +319,11 @@
   )
 
 
-  for (metric_index in seq_along(
-    metric_names
-  )) {
+  for (
+    metric_index in seq_along(
+      metric_names
+    )
+  ) {
 
     metric_name <- metric_names[
       metric_index
@@ -321,15 +331,32 @@
 
 
     metric_result <- .calculate_single_dcf(
-      x = alpha[[metric_name]],
-      y = functionality,
-      dates = dates,
-      max_lag_days = max_lag_days
+
+      alpha_values =
+        alpha[[metric_name]],
+
+      functionality =
+        functionality,
+
+      dates =
+        dates,
+
+      max_lag =
+        max_lag
     )
 
 
-    metric_result$metric <-
-      metric_name
+    if (
+      nrow(
+        metric_result
+      ) == 0L
+    ) {
+
+      next
+    }
+
+
+    metric_result$metric <- metric_name
 
 
     metric_result <- metric_result[
@@ -346,37 +373,48 @@
     ]
 
 
-    result_rows[[metric_index]] <-
-      metric_result
+    result_rows[[metric_index]] <- metric_result
   }
 
 
-  output <- do.call(
+  result_rows <- result_rows[
+    !vapply(
+      result_rows,
+      is.null,
+      logical(1)
+    )
+  ]
+
+
+  if (
+    length(
+      result_rows
+    ) == 0L
+  ) {
+
+    return(
+      data.frame(
+        metric = character(0),
+        lag_days = numeric(0),
+        n_pairs = integer(0),
+        dcf = numeric(0),
+        dcf_sd = numeric(0),
+        dcf_se = numeric(0)
+      )
+    )
+  }
+
+
+  result <- do.call(
     rbind,
     result_rows
   )
 
 
   rownames(
-    output
+    result
   ) <- NULL
 
 
-  output
-}
-
-
-.run_dcf_analysis <- function(
-    alpha,
-    functionality,
-    dates,
-    max_lag_days
-) {
-
-  .calculate_dcf_table(
-    alpha = alpha,
-    functionality = functionality,
-    dates = dates,
-    max_lag_days = max_lag_days
-  )
+  result
 }

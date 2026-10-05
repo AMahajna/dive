@@ -1,113 +1,140 @@
 # ============================================================
 # DIVE
-# General utilities
+# Internal utility functions
 # ============================================================
 
 
-.ensure_directory <- function(
-    directory
-) {
+# ------------------------------------------------------------
+# Check whether a value is a single finite number
+# ------------------------------------------------------------
 
-  if (!dir.exists(
-    directory
-  )) {
+.is_single_number <- function(x) {
 
-    dir.create(
-      directory,
-      recursive = TRUE,
-      showWarnings = FALSE
-    )
-  }
-
-
-  invisible(
-    directory
-  )
+  is.numeric(x) &&
+    length(x) == 1L &&
+    !is.na(x) &&
+    is.finite(x)
 }
 
 
+# ------------------------------------------------------------
+# Validate a positive integer-like argument
+# ------------------------------------------------------------
+
 .validate_positive_integer <- function(
     x,
-    name
+    argument_name
 ) {
 
   if (
-    length(x) != 1L ||
-    !is.numeric(x) ||
-    !is.finite(x) ||
-    x <= 0 ||
+    !.is_single_number(x) ||
+    x < 1 ||
     x != floor(x)
   ) {
 
     stop(
-      "`",
-      name,
-      "` must be one positive integer."
+      argument_name,
+      " must be a positive integer.",
+      call. = FALSE
     )
   }
 
+  as.integer(x)
+}
 
-  as.integer(
+
+# ------------------------------------------------------------
+# Validate a non-negative number
+# ------------------------------------------------------------
+
+.validate_nonnegative_number <- function(
+    x,
+    argument_name
+) {
+
+  if (
+    !.is_single_number(x) ||
+    x < 0
+  ) {
+
+    stop(
+      argument_name,
+      " must be a non-negative number.",
+      call. = FALSE
+    )
+  }
+
+  as.numeric(x)
+}
+
+
+# ------------------------------------------------------------
+# Safe standard deviation
+# ------------------------------------------------------------
+
+.safe_sd <- function(x) {
+
+  x <- x[
+    is.finite(x)
+  ]
+
+  if (length(x) < 2L) {
+
+    return(
+      NA_real_
+    )
+  }
+
+  stats::sd(
     x
   )
 }
 
 
-.validate_dive_result <- function(
-    result
-) {
+# ------------------------------------------------------------
+# Standardize a numeric vector
+# ------------------------------------------------------------
 
-  if (!inherits(
-    result,
-    "dive_result"
-  )) {
+.standardize_vector <- function(x) {
 
-    stop(
-      "Object must inherit from class `dive_result`."
-    )
-  }
-
-
-  required_components <- c(
-    "alpha",
-    "correlation",
-    "settings",
-    "sampling",
-    "method"
+  x <- as.numeric(
+    x
   )
 
-
-  missing_components <- setdiff(
-    required_components,
-    names(
-      result
-    )
+  x_mean <- mean(
+    x,
+    na.rm = TRUE
   )
 
+  x_sd <- stats::sd(
+    x,
+    na.rm = TRUE
+  )
 
-  if (length(
-    missing_components
-  ) > 0L) {
+  if (
+    !is.finite(x_sd) ||
+    x_sd == 0
+  ) {
 
-    stop(
-      "Invalid DIVE result. Missing components: ",
-      paste(
-        missing_components,
-        collapse = ", "
+    return(
+      rep(
+        NA_real_,
+        length(x)
       )
     )
   }
 
-
-  invisible(
-    TRUE
-  )
+  (
+    x - x_mean
+  ) / x_sd
 }
 
 
-.sanitize_filename <- function(
-    x
-) {
+# ------------------------------------------------------------
+# Make strings safe for filenames
+# ------------------------------------------------------------
+
+.sanitize_filename <- function(x) {
 
   x <- gsub(
     "[^A-Za-z0-9_-]+",
@@ -115,13 +142,11 @@
     x
   )
 
-
   x <- gsub(
     "_+",
     "_",
     x
   )
-
 
   x <- gsub(
     "^_|_$",
@@ -129,6 +154,30 @@
     x
   )
 
-
   x
+}
+
+
+# ------------------------------------------------------------
+# Validate DIVE result object
+# ------------------------------------------------------------
+
+.validate_dive_result <- function(x) {
+
+  if (
+    !inherits(
+      x,
+      "dive_result"
+    )
+  ) {
+
+    stop(
+      "The supplied object must be a 'dive_result' object.",
+      call. = FALSE
+    )
+  }
+
+  invisible(
+    TRUE
+  )
 }

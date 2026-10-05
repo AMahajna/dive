@@ -2,16 +2,19 @@
 % Please edit documentation in R/plotting.R
 \name{plot_dive_heatmap}
 \alias{plot_dive_heatmap}
-\title{Plot all DIVE temporal associations}
+\title{Plot a DIVE heatmap}
 \usage{
-plot_dive_heatmap(result)
+plot_dive_heatmap(x, show_title = TRUE)
 }
 \arguments{
-\item{result}{A \code{dive_result}.}
+\item{x}{A \code{dive_result} object.}
+
+\item{show_title}{Logical. Add a plot title?}
 }
 \value{
 A ggplot object.
 }
 \description{
-Plot all DIVE temporal associations
+Creates a heatmap of temporal association values across
+alpha-diversity metrics and temporal lags.
 }

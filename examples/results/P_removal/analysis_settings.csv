@@ -1,0 +1,8 @@
+"setting","value"
+"functionality_name","Phosphorus removal"
+"method","DCF"
+"sampling_even","0"
+"max_lag","63"
+"rarefaction_iterations","100"
+"rarefaction_depth","3366"
+"seed","123"

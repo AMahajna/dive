@@ -1,0 +1,2 @@
+"n_samples","first_sample_date","last_sample_date","study_duration_days","minimum_interval_days","median_interval_days","mean_interval_days","maximum_interval_days","interval_sd_days","observed_sampling_even","user_selected_sampling_even","selected_method"
+32,"2014-10-14","2017-02-09",849,14,28,27.3870967741935,49,7.81740544918768,FALSE,0,"DCF"

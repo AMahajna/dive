@@ -1,96 +1,348 @@
+# ============================================================
+# DIVE
+# Diversity-Informed Valuation of Ecosystem Functioning
+#
+# Main user-facing function
+# ============================================================
 
-#' Diversity-Informed Valuation of Ecosystem functionality
+
+#' Run DIVE analysis
 #'
-#' @param tse abundance data of features in community (format: summarized experiment with n sample)
-#' @param functionality ecosystem performance measure (format: dataframe dimensions n*1)
-#' @param output_dir directory to print cross correlations function in
+#' @description
+#' DIVE calculates alpha-diversity metrics and evaluates their
+#' temporal association with ecosystem functionality.
 #'
-#' @return dataframe containing varying alpha diversity metrics
+#' Evenly sampled time series are analyzed using CCF.
+#'
+#' Unevenly sampled time series are analyzed using an exact-lag
+#' DCF. No lag binning or bootstrap resampling is performed.
+#'
+#' For both methods:
+#'
+#' negative lag = alpha diversity precedes functionality
+#'
+#' lag zero = contemporaneous association
+#'
+#' @param tse A TreeSummarizedExperiment containing an assay
+#'   named `"counts"` and a `Date` column in `colData(tse)`.
+#'
+#' @param functionality Numeric vector containing ecosystem
+#'   functionality values corresponding exactly to the samples
+#'   in `tse`.
+#'
+#' @param sampling_even Numeric indicator. Use `1` for evenly
+#'   sampled data and `0` for unevenly sampled data.
+#'
+#' @param output_dir Directory in which DIVE output will be
+#'   written.
+#'
+#' @param rarefaction_iterations Number of repeated rarefaction
+#'   rounds used for alpha-diversity estimation.
+#'
+#' @param rarefaction_depth Rarefaction depth. If `NULL`, the
+#'   smallest sample library size is used.
+#'
+#' @param max_lag Maximum lag. For DCF this is expressed in
+#'   days. For CCF this is expressed as number of sampling
+#'   intervals.
+#'
+#' @param seed Random-number seed used by repeated rarefaction.
+#'
+#' @return An object of class `dive_result`.
+#'
 #' @export
-#'
-#' @examples dive(tse, functionality, output_dir = "figures")
+dive <- function(
+    tse,
+    functionality,
+    sampling_even,
+    output_dir = "DIVE_results",
+    rarefaction_iterations = 50L,
+    rarefaction_depth = NULL,
+    max_lag = 63,
+    seed = 123
+) {
 
-dive <- function(tse, functionality, output_dir = "figures") {
-  suppressMessages({
-    suppressWarnings({
-      #Compute alpha diversity
-      #Richness
-      tse <- mia::estimateRichness(tse,
-                                   assay.type = "counts",
-                                   index =   c("ace", "chao1", "hill", "observed"),
-                                   name=  c("ace", "chao1", "hill", "observed"))
+  # ----------------------------------------------------------
+  # Validate analysis type
+  # ----------------------------------------------------------
 
-      #Diversity
-      tse <- mia::estimateDiversity(tse,
-                                    assay.type = "counts",
-                                    index =  c("coverage", "fisher", "gini_simpson", "inverse_simpson",
-                                               "shannon"),
-                                    name =  c("coverage", "fisher", "gini_simpson", "inverse_simpson",
-                                              "shannon"))
-      #Evenness
-      tse <- mia::estimateEvenness(tse,
-                                   assay.type = "counts",
-                                   index=c("camargo", "pielou", "simpson_evenness", "evar", "bulla"),
-                                   name = c("camargo", "pielou", "simpson_evenness", "evar", "bulla"))
-      #Dominance
-      tse <- mia::estimateDominance(tse,
-                                    assay.type = "counts",
-                                    index=c("absolute", "dbp", "core_abundance", "gini", "dmn", "relative",
-                                            "simpson_lambda"),
-                                    name = c("absolute", "dbp", "core_abundance", "gini", "dmn", "relative",
-                                             "simpson_lambda"))
-      ##Divergence
-      tse <- mia::addDivergence(tse)
+  if (
+    length(sampling_even) != 1L ||
+    !is.numeric(sampling_even) ||
+    !is.finite(sampling_even) ||
+    !sampling_even %in% c(0, 1)
+  ) {
 
-      ##Rarity
-      tse <- mia::estimateDiversity(tse,
-                                    assay.type = "counts",
-                                    index = "log_modulo_skewness")
+    stop(
+      "`sampling_even` must be either 0 or 1."
+    )
+  }
 
-      #Create alpha diversity data-frame
-      alpha = as.data.frame(SummarizedExperiment::colData(tse))
-      selected_alpha <- c("ace", "chao1", "hill", "observed",
-                          "coverage", "fisher", "gini_simpson", "inverse_simpson",
-                          "shannon","camargo", "pielou", "simpson_evenness", "evar",
-                          "bulla","absolute", "dbp", "core_abundance", "gini", "dmn", "relative",
-                          "simpson_lambda","divergence","log_modulo_skewness")
-      alpha = alpha[ ,selected_alpha]
 
-      #Create 'figures' folder if it doesn't exist
-      if (!dir.exists(output_dir)) {
-        dir.create(output_dir)
-      }
+  rarefaction_iterations <- .validate_positive_integer(
+    rarefaction_iterations,
+    "rarefaction_iterations"
+  )
 
-      #Plot Cross-correlation funcitons as save in figures folder
-      plot_list <- list()
-      for (i in 1:length(alpha)){
-        #Add name of the alpha diversity used in CCF
-        n=colnames(alpha)
-        text = paste("Cross-correlation function for", n[i] , "and removal efficiency")
-        #CCF
-        plot <- forecast::ggCcf(alpha[ ,i],
-                                functionality,
-                                type = "correlation",
-                                na.action = stats::na.contiguous) +
-          ggplot2::theme_minimal() +
-          ggplot2::scale_x_continuous(limits = c(-4, 0), breaks = seq(-4, 0, 1)) +
-          ggplot2::scale_y_continuous(limits = c(-0.45, 0.45), breaks = seq(-0.45, 0.45, 0.1)) +
-          ggplot2::labs(title = text,
-               x = "Lag", y = "Correlation Coefficient") +
-          ggplot2::theme(plot.title = ggplot2::element_text(size = 9))
-        plot_list[[i]] <- plot
-        #ggplotly(plot)
-        #Save plot
-        cff_name = paste('figures/','ccf_', n[i],".png")
-        grDevices::png(cff_name ,units = 'in',width=5, height=5, res=1000)
-        print(plot)
-        grDevices::dev.off()
-      }
 
-    })
-  })
-  #Return alpha diversity measures
-  return(alpha)
+  if (
+    length(max_lag) != 1L ||
+    !is.numeric(max_lag) ||
+    !is.finite(max_lag) ||
+    max_lag < 0
+  ) {
+
+    stop(
+      "`max_lag` must be one non-negative number."
+    )
+  }
+
+
+  # ----------------------------------------------------------
+  # Read sampling dates
+  # ----------------------------------------------------------
+
+  dates <- .get_dive_dates(
+    tse = tse
+  )
+
+
+  if (length(dates) < 2L) {
+
+    stop(
+      "At least two sampling dates are required."
+    )
+  }
+
+
+  # ----------------------------------------------------------
+  # Validate functionality
+  # ----------------------------------------------------------
+
+  functionality <- .prepare_functionality(
+    functionality = functionality,
+    n_samples = length(dates)
+  )
+
+
+  # ----------------------------------------------------------
+  # Sort TSE, dates and functionality chronologically
+  # ----------------------------------------------------------
+
+  chronological_order <- order(
+    dates
+  )
+
+
+  dates <- dates[
+    chronological_order
+  ]
+
+
+  tse <- tse[
+    ,
+    chronological_order
+  ]
+
+
+  functionality <- functionality[
+    chronological_order
+  ]
+
+
+  # ----------------------------------------------------------
+  # Inspect temporal sampling
+  # ----------------------------------------------------------
+
+  sampling <- .inspect_sampling(
+    dates = dates,
+    sampling_even = sampling_even
+  )
+
+
+  # ----------------------------------------------------------
+  # Calculate alpha diversity
+  # ----------------------------------------------------------
+
+  set.seed(
+    seed
+  )
+
+
+  alpha <- .calculate_alpha(
+    tse = tse,
+    rarefaction_depth = rarefaction_depth,
+    rarefaction_iterations = rarefaction_iterations
+  )
+
+
+  if (
+    !is.data.frame(alpha) &&
+    !is.matrix(alpha)
+  ) {
+
+    stop(
+      "Alpha-diversity calculation did not return a ",
+      "two-dimensional table."
+    )
+  }
+
+
+  if (nrow(alpha) != length(dates)) {
+
+    stop(
+      "Alpha-diversity output does not contain one row ",
+      "for every sampling date."
+    )
+  }
+
+
+  # ==========================================================
+  # DCF
+  # Unevenly sampled data
+  # ==========================================================
+
+  if (sampling_even == 0) {
+
+    method <- "DCF"
+
+
+    correlation <- .calculate_dcf_table(
+      alpha = alpha,
+      functionality = functionality,
+      dates = dates,
+      max_lag_days = max_lag
+    )
+
+
+    # ==========================================================
+    # CCF
+    # Evenly sampled data
+    # ==========================================================
+
+  } else {
+
+    method <- "CCF"
+
+
+    sampling_intervals <- as.numeric(
+      diff(
+        dates
+      )
+    )
+
+
+    sampling_interval_days <- stats::median(
+      sampling_intervals,
+      na.rm = TRUE
+    )
+
+
+    if (
+      !is.finite(sampling_interval_days) ||
+      sampling_interval_days <= 0
+    ) {
+
+      stop(
+        "Could not determine a valid sampling interval."
+      )
+    }
+
+
+    correlation <- .calculate_ccf_table(
+      alpha = alpha,
+      functionality = functionality,
+      max_lag = max_lag,
+      sampling_interval_days = sampling_interval_days
+    )
+  }
+
+
+  # ----------------------------------------------------------
+  # Restore alpha-metric ordering
+  # ----------------------------------------------------------
+
+  metric_order <- colnames(
+    alpha
+  )
+
+
+  correlation$metric <- factor(
+    correlation$metric,
+    levels = metric_order
+  )
+
+
+  correlation <- correlation[
+    order(
+      correlation$metric,
+      correlation$lag_days
+    ),
+    ,
+    drop = FALSE
+  ]
+
+
+  correlation$metric <- as.character(
+    correlation$metric
+  )
+
+
+  rownames(
+    correlation
+  ) <- NULL
+
+
+  # ----------------------------------------------------------
+  # Record settings
+  # ----------------------------------------------------------
+
+  settings <- list(
+    sampling_even = sampling_even,
+    analysis_method = method,
+    rarefaction_iterations = rarefaction_iterations,
+    rarefaction_depth = rarefaction_depth,
+    max_lag = max_lag,
+    lag_definition = "negative lag means alpha diversity precedes functionality",
+    dcf_lag_method = if (
+      method == "DCF"
+    ) {
+      "exact observed day differences; no binning"
+    } else {
+      NA_character_
+    },
+    seed = seed
+  )
+
+
+  # ----------------------------------------------------------
+  # Construct result
+  # ----------------------------------------------------------
+
+  result <- list(
+    alpha = alpha,
+    correlation = correlation,
+    settings = settings,
+    sampling = sampling,
+    method = method
+  )
+
+
+  class(
+    result
+  ) <- "dive_result"
+
+
+  # ----------------------------------------------------------
+  # Write tables and figures
+  # ----------------------------------------------------------
+
+  .write_dive_output(
+    result = result,
+    sample_dates = dates,
+    output_dir = output_dir
+  )
+
+
+  result
 }
-
-

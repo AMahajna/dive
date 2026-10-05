@@ -2,23 +2,60 @@
 % Please edit documentation in R/dive.R
 \name{dive}
 \alias{dive}
-\title{Diversity-Informed Valuation of Ecosystem functionality}
+\title{Run DIVE analysis}
 \usage{
-dive(tse, functionality, output_dir = "figures")
+dive(
+  tse,
+  functionality,
+  sampling_even,
+  output_dir = "DIVE_results",
+  rarefaction_iterations = 50L,
+  rarefaction_depth = NULL,
+  max_lag = 63,
+  seed = 123
+)
 }
 \arguments{
-\item{tse}{abundance data of features in community (format: summarized experiment with n sample)}
+\item{tse}{A TreeSummarizedExperiment containing an assay
+named \code{"counts"} and a \code{Date} column in \code{colData(tse)}.}
 
-\item{functionality}{ecosystem performance measure (format: dataframe dimensions n*1)}
+\item{functionality}{Numeric vector containing ecosystem
+functionality values corresponding exactly to the samples
+in \code{tse}.}
 
-\item{output_dir}{directory to print cross correlations function in}
+\item{sampling_even}{Numeric indicator. Use \code{1} for evenly
+sampled data and \code{0} for unevenly sampled data.}
+
+\item{output_dir}{Directory in which DIVE output will be
+written.}
+
+\item{rarefaction_iterations}{Number of repeated rarefaction
+rounds used for alpha-diversity estimation.}
+
+\item{rarefaction_depth}{Rarefaction depth. If \code{NULL}, the
+smallest sample library size is used.}
+
+\item{max_lag}{Maximum lag. For DCF this is expressed in
+days. For CCF this is expressed as number of sampling
+intervals.}
+
+\item{seed}{Random-number seed used by repeated rarefaction.}
 }
 \value{
-dataframe containing varying alpha diversity metrics
+An object of class \code{dive_result}.
 }
 \description{
-Diversity-Informed Valuation of Ecosystem functionality
-}
-\examples{
-dive(tse, functionality, output_dir = "figures")
+DIVE calculates alpha-diversity metrics and evaluates their
+temporal association with ecosystem functionality.
+
+Evenly sampled time series are analyzed using CCF.
+
+Unevenly sampled time series are analyzed using an exact-lag
+DCF. No lag binning or bootstrap resampling is performed.
+
+For both methods:
+
+negative lag = alpha diversity precedes functionality
+
+lag zero = contemporaneous association
 }
